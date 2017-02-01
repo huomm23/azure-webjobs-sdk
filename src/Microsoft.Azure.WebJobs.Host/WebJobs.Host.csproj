@@ -380,6 +380,7 @@
     <Compile Include="Bindings\BindingFactory.cs" />
     <Compile Include="Bindings\BindingProviders\AsyncCollectorWithConverterManagerBindingProvider.cs" />
     <Compile Include="Bindings\BindingProviders\BindToInputBindingProvider.cs" />
+    <Compile Include="Bindings\BindingProviders\Class1.cs" />
     <Compile Include="Bindings\BindingProviders\FluidBindingProvider.cs" />
     <Compile Include="Bindings\BindingProviders\FilteringBindingProvider.cs" />
     <Compile Include="Bindings\BindingProviders\FluidBindingProviderExtensions.cs" />

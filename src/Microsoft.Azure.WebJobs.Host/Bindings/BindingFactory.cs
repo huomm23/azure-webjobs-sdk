@@ -118,6 +118,24 @@ namespace Microsoft.Azure.WebJobs.Host.Bindings
         }
 
         /// <summary>
+        /// 
+        /// </summary>
+        /// <typeparam name="TAttribute"></typeparam>
+        /// <typeparam name="TType"></typeparam>
+        /// <param name="builderType"></param>
+        /// <param name="constructorArgs"></param>
+        /// <returns></returns>
+        public IBindingProvider BindToCollector<TAttribute, TType>(
+            Type builderType,
+            params object[] constructorArgs
+            ) where TAttribute : Attribute
+        {
+            var pm = PatternMatcher.New(builderType, constructorArgs);
+            return new BindToInputBindingProvider<TAttribute, TType>(this._nameResolver, this._converterManager, pm);
+        }
+
+        /*
+        /// <summary>
         /// Create a binding provider for binding a parameter to an <see cref="IAsyncCollector{T}"/> where T is the user parameter's type. 
         /// </summary>
         /// <typeparam name="TAttribute">Type of binding attribute on the user's parameter.</typeparam>
@@ -136,6 +154,7 @@ namespace Microsoft.Azure.WebJobs.Host.Bindings
 
             return new GenericAsyncCollectorBindingProvider<TAttribute>(this._nameResolver, builder, filter);
         }
+        */
 
         /// <summary>
         /// General rule for binding to an input type for a given attribute. 
