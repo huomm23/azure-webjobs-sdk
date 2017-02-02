@@ -319,7 +319,7 @@ namespace Microsoft.Azure.WebJobs.Host.Bindings
                 return this.TemplateBindWorker(template, bindingData);
             }
 
-            protected virtual string TemplateBindWorker(Attribute attr, PropertyInfo property, BindingTemplate template, IReadOnlyDictionary<string, object> bindingData)
+            protected virtual string TemplateBindWorker(BindingTemplate template, IReadOnlyDictionary<string, object> bindingData)
             {                
                 return template.Bind(bindingData);
             }

@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 
 namespace Microsoft.Azure.WebJobs.Host.Bindings
 {
+    // $$$ remove this class?
     // Bind Attribute --> IAsyncCollector<TMessage>, where TMessage is determined by the  user parameter type.
     // This skips the converter manager and instead dynamically allocates a generic IAsyncCollector<TMessage>
     // where TMessage matches the user parameter type. 
