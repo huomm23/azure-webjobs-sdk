@@ -9,17 +9,16 @@ using Microsoft.Azure.WebJobs.Host.Protocols;
 
 namespace Microsoft.Azure.WebJobs.Host.Bindings
 {
-    // General rule for binding to input parameters.
-    // Can invoke Converter manager. 
-    // Can leverage OpenTypes for pattern matchers.
-    internal class SuperX<TAttribute, TType> : FluidBindingProvider<TAttribute>, IBindingProvider
+    // General rule for binding parameters to an AsyncCollector. 
+    // Supports the various flavors like IAsyncCollector, ICollector, out T, out T[]. 
+    internal class AsyncCollectorBindingProvider<TAttribute, TType> : FluidBindingProvider<TAttribute>, IBindingProvider
         where TAttribute : Attribute
     {
         private readonly INameResolver _nameResolver;
         private readonly IConverterManager _converterManager;
         private readonly PatternMatcher _patternMatcher;
 
-         public SuperX(
+         public AsyncCollectorBindingProvider(
             INameResolver nameResolver,
             IConverterManager converterManager,
             PatternMatcher patternMatcher)
@@ -60,7 +59,9 @@ namespace Microsoft.Azure.WebJobs.Host.Bindings
             return Task.FromResult<IBinding>(binding);
         }
 
-        private ParamMode GetMode(ParameterInfo parameter)
+        // Parse the signature to determine which mode this is. 
+        // Can also check with converter manager to disambiguate some cases. 
+        private BindingMode GetMode(ParameterInfo parameter)
         {
             Type parameterType = parameter.ParameterType;
             if (parameterType.IsGenericType)
@@ -70,11 +71,11 @@ namespace Microsoft.Azure.WebJobs.Host.Bindings
 
                 if (genericType == typeof(IAsyncCollector<>))
                 {
-                    return new ParamMode(Mode.IAsyncCollector, elementType);
+                    return new BindingMode(Mode.IAsyncCollector, elementType);
                 }
                 else if (genericType == typeof(ICollector<>))
                 {
-                    return new ParamMode(Mode.ICollector, elementType);
+                    return new BindingMode(Mode.ICollector, elementType);
                 }
 
                 // A different interface. Let another rule try it. 
@@ -91,21 +92,21 @@ namespace Microsoft.Azure.WebJobs.Host.Bindings
                 if (hasConverter)
                 {
                     // out T, where T might be an array 
-                    return new ParamMode(Mode.OutSingle, elementType);
+                    return new BindingMode(Mode.OutSingle, elementType);
                 }
 
                 if (elementType.IsArray)
                 {
                     // out T[]
                     var messageType = elementType.GetElementType();
-                    return new ParamMode(Mode.OutArray, messageType);
+                    return new BindingMode(Mode.OutArray, messageType);
                 }
 
                 var checker = ConverterManager.GetTypeValidator<TType>();
                 if (checker.IsMatch(elementType))
                 {
                     // out T, t is not an array 
-                    return new ParamMode(Mode.OutSingle, elementType);                    
+                    return new BindingMode(Mode.OutSingle, elementType);                    
                 }
 
                 // For out-param ,we don't expect another rule to claim it. So give some rich errors on mismatch.
@@ -125,9 +126,9 @@ namespace Microsoft.Azure.WebJobs.Host.Bindings
         }
 
         // Represent the different possible flavors for binding to an async collector
-        private class ParamMode
+        private class BindingMode
         {
-            public ParamMode(Mode mode, Type elementType)
+            public BindingMode(Mode mode, Type elementType)
             {
                 this.Mode = mode;
                 this.ElementType = elementType;
@@ -158,7 +159,7 @@ namespace Microsoft.Azure.WebJobs.Host.Bindings
             }
 
             public static ExactBinding<TMessage> TryBuild(
-                SuperX<TAttribute, TType> parent,
+                AsyncCollectorBindingProvider<TAttribute, TType> parent,
                 Mode mode,
                 BindingProviderContext context)
             {
@@ -196,7 +197,9 @@ namespace Microsoft.Azure.WebJobs.Host.Bindings
                     converter = cm.GetConverter<TMessage, TType, TAttribute>();
                     if (converter == null)
                     {
-                        return null;
+                        // Preserves legacy behavior. This means we can only have 1 async collector.
+                        // However, the collector's builder object can switch. 
+                        throw NewMissingConversionError(typeof(TMessage));
                     }
 
                     buildFromAttribute = patternMatcher.TryGetConverterFunc(
@@ -226,6 +229,21 @@ namespace Microsoft.Azure.WebJobs.Host.Bindings
                 }
 
                 return new ExactBinding<TMessage>(cloner, param, mode, buildFromAttribute, converter);
+            }
+
+            // typeUser - type in the user's parameter. 
+            private static Exception NewMissingConversionError(Type typeUser)
+            {
+                if (typeUser.IsPrimitive)
+                {
+                    return new NotSupportedException("Primitive types are not supported.");
+                }
+
+                if (typeof(IEnumerable).IsAssignableFrom(typeUser))
+                {
+                    return new InvalidOperationException("Nested collections are not supported.");
+                }
+                return new InvalidOperationException("Can't convert from type '" + typeUser.FullName);
             }
 
             protected override Task<IValueProvider> BuildAsync(
@@ -267,7 +285,6 @@ namespace Microsoft.Azure.WebJobs.Host.Bindings
 
                     case Mode.ICollector:
                         ICollector<TMessage> syncCollector = new SyncAsyncCollectorAdapter<TMessage>(collector);
-
                         vp = new AsyncCollectorValueProvider<ICollector<TMessage>, TMessage>(syncCollector, collector, invokeString);
                         return vp;
 
